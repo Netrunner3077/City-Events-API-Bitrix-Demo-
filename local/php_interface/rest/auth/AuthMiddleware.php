@@ -1,4 +1,5 @@
 <?php
+
 namespace Local\Rest\Auth;
 
 use Bitrix\Main\Context;

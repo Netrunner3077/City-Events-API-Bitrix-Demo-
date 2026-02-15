@@ -1,4 +1,5 @@
 <?php
+
 namespace Local\Rest\Pagination;
 
 class CursorPagination
@@ -8,7 +9,7 @@ class CursorPagination
         $cursorData = [
             'last_id' => $lastItem['id'],
         ];
-        
+
         foreach ($sortRules as $field => $direction) {
             $fieldMap = [
                 'PROPERTY_START_AT' => 'start_at',
@@ -22,44 +23,58 @@ class CursorPagination
             $cursorData[$cursorKey] = $lastItem[$cursorKey] ?? null;
             $cursorData[$cursorKey . '_dir'] = $direction;
         }
-        
+
         return base64_encode(json_encode($cursorData));
     }
-    
+
     public function applyCursor(array &$filter, string $cursor, array $sortRules): void
     {
         $cursorData = json_decode(base64_decode($cursor), true);
         if (!$cursorData) {
             return;
         }
-        
-        $conditions = [];
+
         $lastId = $cursorData['last_id'];
-        
-        if (isset($sortRules['PROPERTY_START_AT']) && $sortRules['PROPERTY_START_AT'] === 'ASC' &&
+
+        if (
+            isset($sortRules['PROPERTY_START_AT']) && $sortRules['PROPERTY_START_AT'] === 'ASC' &&
             isset($sortRules['PROPERTY_POPULARITY']) && $sortRules['PROPERTY_POPULARITY'] === 'DESC' &&
-            isset($sortRules['ID']) && $sortRules['ID'] === 'ASC') {
-            
+            isset($sortRules['ID']) && $sortRules['ID'] === 'ASC'
+        ) {
             $lastStart = $cursorData['start_at'];
+            $lastStartObj = null;
+            if ($lastStart) {
+                $phpDateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $lastStart);
+                if ($phpDateTime) {
+                    $lastStartObj = \Bitrix\Main\Type\DateTime::createFromPhp($phpDateTime);
+                }
+            }
+            if (!$lastStartObj) {
+                $filter['>ID'] = $lastId;
+                return;
+            }
             $lastPopularity = $cursorData['popularity'];
-            
+
             $filter[] = [
                 'LOGIC' => 'OR',
-                ['>PROPERTY_START_AT' => $lastStart],
+                ['>PROPERTY_START_AT' => $lastStartObj],
                 [
-                    '=PROPERTY_START_AT' => $lastStart,
+                    '=PROPERTY_START_AT' => $lastStartObj,
                     '<PROPERTY_POPULARITY' => $lastPopularity,
                 ],
                 [
-                    '=PROPERTY_START_AT' => $lastStart,
+                    '=PROPERTY_START_AT' => $lastStartObj,
                     '=PROPERTY_POPULARITY' => $lastPopularity,
                     '>ID' => $lastId,
                 ]
             ];
-        } elseif (isset($sortRules['PROPERTY_POPULARITY']) && $sortRules['PROPERTY_POPULARITY'] === 'DESC' && isset($sortRules['ID']) && $sortRules['ID'] === 'ASC' && count($sortRules) == 2) {
+        } elseif (
+            isset($sortRules['PROPERTY_POPULARITY']) && $sortRules['PROPERTY_POPULARITY'] === 'DESC' &&
+            isset($sortRules['ID']) && $sortRules['ID'] === 'ASC' &&
+            count($sortRules) == 2
+        ) {
             $lastPopularity = $cursorData['popularity'];
-            $lastId = $cursorData['last_id'];
-            
+
             $filter[] = [
                 'LOGIC' => 'OR',
                 ['<PROPERTY_POPULARITY' => $lastPopularity],

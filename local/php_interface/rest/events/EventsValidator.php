@@ -1,4 +1,5 @@
 <?php
+
 namespace Local\Rest\Events;
 
 class EventsValidator
@@ -11,7 +12,7 @@ class EventsValidator
         $this->validateCapacity($data);
         $this->validateStatusCreate($data);
     }
-    
+
     public function validateUpdate(array $current, array $data): void
     {
         if (isset($data['start_at'])) {
@@ -21,26 +22,26 @@ class EventsValidator
                 $this->throwValidation('start_at cannot be in the past');
             }
         }
-        
+
         if ($current['status'] === 'cancelled' && isset($data['status']) && $data['status'] === 'published') {
             $this->throwValidation('Cannot change status from cancelled to published');
         }
-        
+
         if (isset($data['end_at']) || isset($data['start_at'])) {
             $mergedStart = $data['start_at'] ?? $current['start_at'];
             $mergedEnd = $data['end_at'] ?? $current['end_at'];
             $this->validateDatePair($mergedStart, $mergedEnd);
         }
-        
+
         if (isset($data['tags'])) {
             $this->validateTags($data);
         }
-        
+
         if (isset($data['capacity'])) {
             $this->validateCapacity($data);
         }
     }
-    
+
     private function validateRequired(array $data): void
     {
         $required = ['title', 'place', 'start_at', 'end_at', 'capacity', 'status'];
@@ -50,12 +51,12 @@ class EventsValidator
             }
         }
     }
-    
+
     private function validateDates(array $data): void
     {
         $this->validateDatePair($data['start_at'], $data['end_at']);
     }
-    
+
     private function validateDatePair(string $start, string $end): void
     {
         $startDt = \DateTime::createFromFormat('Y-m-d H:i', $start);
@@ -67,7 +68,7 @@ class EventsValidator
             $this->throwValidation('start_at must be earlier than end_at');
         }
     }
-    
+
     private function validateTags(array $data): void
     {
         if (isset($data['tags'])) {
@@ -79,7 +80,7 @@ class EventsValidator
             }
         }
     }
-    
+
     private function validateCapacity(array $data): void
     {
         if (isset($data['capacity'])) {
@@ -89,14 +90,14 @@ class EventsValidator
             }
         }
     }
-    
+
     private function validateStatusCreate(array $data): void
     {
         if ($data['status'] === 'cancelled') {
             $this->throwValidation('Cannot create event with status cancelled');
         }
     }
-    
+
     private function throwValidation(string $message): void
     {
         throw new \Exception($message, 422);

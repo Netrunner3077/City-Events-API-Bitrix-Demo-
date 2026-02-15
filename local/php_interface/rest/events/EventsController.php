@@ -1,7 +1,11 @@
 <?php
+
 namespace Local\Rest\Events;
 
 use Bitrix\Main\Context;
+
+require_once __DIR__ . '/EventsService.php';
+require_once __DIR__ . '/EventsValidator.php';
 
 class EventsController
 {
@@ -9,17 +13,17 @@ class EventsController
     {
         $request = Context::getCurrent()->getRequest();
         $params = $request->getQueryList()->toArray();
-        
+
         $service = new EventsService();
         $result = $service->getList($params);
-        
+
         $this->jsonResponse(200, $result);
     }
-    
+
     public function create(): void
     {
         $data = $this->getJsonInput();
-        
+
         $service = new EventsService();
         try {
             $event = $service->create($data);
@@ -29,29 +33,29 @@ class EventsController
             $this->errorResponse($code, $e->getMessage());
         }
     }
-    
+
     public function get(int $id): void
     {
         $service = new EventsService();
         $event = $service->getById($id);
-        
+
         if (!$event) {
             $this->errorResponse(404, 'Event not found');
             return;
         }
-        
+
         $dayOfWeek = (int)date('w');
         if ($dayOfWeek === 2 || $dayOfWeek === 3) {
             $event['recommendation'] = 'Рекомендуем по вторникам и средам';
         }
-        
+
         $this->jsonResponse(200, $event);
     }
-    
+
     public function update(int $id): void
     {
         $data = $this->getJsonInput();
-        
+
         $service = new EventsService();
         try {
             $event = $service->update($id, $data);
@@ -61,7 +65,7 @@ class EventsController
             $this->errorResponse($code, $e->getMessage());
         }
     }
-    
+
     public function delete(int $id): void
     {
         $service = new EventsService();
@@ -73,7 +77,7 @@ class EventsController
             $this->errorResponse($code, $e->getMessage());
         }
     }
-    
+
     private function getJsonInput(): array
     {
         $input = file_get_contents('php://input');
@@ -83,7 +87,7 @@ class EventsController
         }
         return $data;
     }
-    
+
     private function jsonResponse(int $status, $data): void
     {
         http_response_code($status);
@@ -91,7 +95,7 @@ class EventsController
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         exit;
     }
-    
+
     private function errorResponse(int $status, string $message, string $code = 'ERROR'): void
     {
         http_response_code($status);
