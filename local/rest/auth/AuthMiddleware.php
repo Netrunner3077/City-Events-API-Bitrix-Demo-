@@ -5,7 +5,7 @@ use Bitrix\Main\Context;
 
 class AuthMiddleware
 {
-    const API_KEY = 'secret-api-key-2025';
+    const API_KEY = 'secret-api-key-2026';
 
     public static function check(): bool
     {
