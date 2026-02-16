@@ -427,4 +427,4 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: API-ключ для доступа к сервису. Значение по умолчанию: `secret-api-key-2026`.
+      description: API-ключ для доступа к сервису. Значение по умолчанию: 'secret-api-key-2026'.
