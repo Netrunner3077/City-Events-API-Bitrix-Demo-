@@ -19,8 +19,12 @@ class EventsService
 
     private function getIblockId(): int
     {
-        $iblock = \CIBlock::GetList([], ['CODE' => self::IBLOCK_CODE])->Fetch();
-        return $iblock ? (int)$iblock['ID'] : 0;
+        static $id = null;
+        if ($id === null) {
+            $iblock = \CIBlock::GetList([], ['CODE' => self::IBLOCK_CODE])->Fetch();
+            $id = $iblock ? (int)$iblock['ID'] : 0;
+        }
+        return $id;
     }
 
     /**
@@ -37,7 +41,6 @@ class EventsService
         if ($popularity === 1) {
             throw new \Exception('Low popularity Not interesting Event', 400);
         }
-        $data['POPULARITY'] = $popularity;
 
         $iblockId = $this->getIblockId();
         $element = new CIBlockElement();
@@ -48,11 +51,11 @@ class EventsService
             'ACTIVE' => $data['status'] === 'published' ? 'Y' : 'N',
             'PROPERTY_VALUES' => [
                 'PLACE' => $data['place'],
-                'START_AT' => new DateTime($data['start_at'], 'Y-m-d H:i:s'),
-                'END_AT' => new DateTime($data['end_at'], 'Y-m-d H:i:s'),
-                'TAGS' => $data['tags'] ?? [],
+                'START_AT' => new DateTime($data['start_at'] . ':00', 'Y-m-d H:i:s'),
+                'END_AT'   => new DateTime($data['end_at'] . ':00', 'Y-m-d H:i:s'),
+                'TAGS'     => $data['tags'] ?? [],
                 'CAPACITY' => $data['capacity'],
-                'STATUS' => $data['status'],
+                'STATUS'   => $data['status'],
                 'POPULARITY' => $popularity,
                 'CHANGE_NUMBER' => 0,
             ]
@@ -115,11 +118,11 @@ class EventsService
 
         $propValues = [
             'PLACE' => $merged['place'],
-            'START_AT' => new DateTime($merged['start_at'], 'Y-m-d H:i:s'),
-            'END_AT' => new DateTime($merged['end_at'], 'Y-m-d H:i:s'),
-            'TAGS' => $merged['tags'] ?? [],
+            'START_AT' => new DateTime($merged['start_at'] . ':00', 'Y-m-d H:i:s'),
+            'END_AT'   => new DateTime($merged['end_at'] . ':00', 'Y-m-d H:i:s'),
+            'TAGS'     => $merged['tags'] ?? [],
             'CAPACITY' => $merged['capacity'],
-            'STATUS' => $merged['status'],
+            'STATUS'   => $merged['status'],
             'POPULARITY' => $merged['popularity'],
             'CHANGE_NUMBER' => $merged['change_number'],
         ];
@@ -160,12 +163,15 @@ class EventsService
         $iblockId = $this->getIblockId();
         $filter = ['IBLOCK_ID' => $iblockId];
 
-        // Фильтрация
+        $baseFilter = $filter;
+
         if (!empty($params['from'])) {
-            $filter['>=PROPERTY_START_AT'] = new DateTime($params['from'], 'Y-m-d H:i:s');
+            $from = new \DateTime($params['from'] . ' 00:00:00');
+            $filter['>=PROPERTY_START_AT'] = DateTime::createFromPhp($from);
         }
         if (!empty($params['to'])) {
-            $filter['<=PROPERTY_START_AT'] = new DateTime($params['to'], 'Y-m-d H:i:s');
+            $to = new \DateTime($params['to'] . ' 23:59:59');
+            $filter['<=PROPERTY_START_AT'] = DateTime::createFromPhp($to);
         }
         if (!empty($params['place'])) {
             $filter['=PROPERTY_PLACE'] = $params['place'];
@@ -184,11 +190,10 @@ class EventsService
         }
 
         $sortRules = $this->buildSort($params['sort'] ?? 'soon_and_popular');
-
         $limit = min((int)($params['limit'] ?? 10), 50);
         $cursor = $params['cursor'] ?? null;
 
-        $pagination = new \Local\Rest\Pagination\CursorPagination(); // создаём всегда
+        $pagination = new \Local\Rest\Pagination\CursorPagination();
 
         if ($cursor) {
             $pagination->applyCursor($filter, $cursor, $sortRules);
@@ -207,7 +212,9 @@ class EventsService
         $count = 0;
         while ($el = $rs->GetNextElement()) {
             $count++;
-            if ($count > $limit) break;
+            if ($count > $limit) {
+                break;
+            }
             $item = $this->formatElement($el);
             $items[] = $item;
             $lastItem = $item;
@@ -225,10 +232,7 @@ class EventsService
             $nextUrl = $this->buildUrl($nextParams);
         }
 
-        if ($cursor) {
-        }
-
-        $total = $this->countTotal($filter);
+        $total = $this->countTotal($baseFilter);
 
         return [
             'data' => $items,
@@ -250,7 +254,7 @@ class EventsService
         $props = $el->GetProperties();
 
         $tags = [];
-        if ($props['TAGS']['VALUE']) {
+        if (!empty($props['TAGS']['VALUE'])) {
             $tags = is_array($props['TAGS']['VALUE']) ? $props['TAGS']['VALUE'] : [$props['TAGS']['VALUE']];
         }
 
@@ -258,7 +262,8 @@ class EventsService
             if ($value instanceof \Bitrix\Main\Type\DateTime) {
                 return $value->format('Y-m-d H:i:s');
             } elseif (is_string($value)) {
-                $date = \DateTime::createFromFormat('d.m.Y H:i:s', $value);
+                $date = \DateTime::createFromFormat('d.m.Y H:i:s', $value) ?:
+                    \DateTime::createFromFormat('Y-m-d H:i:s', $value);
                 if ($date) {
                     return $date->format('Y-m-d H:i:s');
                 }
@@ -281,7 +286,7 @@ class EventsService
         ];
     }
 
-    private function calculatePopularity(array $data): int
+    public function calculatePopularity(array $data): int
     {
         $today = new \DateTime('today');
         $start = new \DateTime($data['start_at']);
@@ -294,10 +299,8 @@ class EventsService
         $tagCount = count($data['tags'] ?? []);
 
         $raw = 3 + ($capacity / 1000) - ($daysToStart / 10) + $tagCount;
-
         $rounded = round($raw);
-        if ($rounded < 1) $rounded = 1;
-        if ($rounded > 5) $rounded = 5;
+        $rounded = max(1, min(5, $rounded));
 
         return (int)$rounded;
     }
@@ -320,6 +323,9 @@ class EventsService
 
     private function buildUrl(array $params): string
     {
+        $params = array_filter($params, function ($v) {
+            return $v !== '' && $v !== null;
+        });
         $query = http_build_query($params);
         return '/events/v1/' . ($query ? '?' . $query : '');
     }

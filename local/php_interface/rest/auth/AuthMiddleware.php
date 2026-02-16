@@ -10,8 +10,8 @@ class AuthMiddleware
 
     public static function check(): bool
     {
-        $headers = getallheaders();
-        $apiKey = $headers['X-API-Key'] ?? '';
+        $request = Context::getCurrent()->getRequest();
+        $apiKey = $request->getHeader('X-API-Key');
         return $apiKey === self::API_KEY;
     }
 }

@@ -122,16 +122,12 @@ $propDefinitions = [
 foreach ($propDefinitions as $prop) {
     $prop['IBLOCK_ID'] = $iblockId;
     $prop['ACTIVE'] = 'Y';
-    if ($prop['PROPERTY_TYPE'] == 'L') {
-        $values = $prop['VALUES'];
-        unset($prop['VALUES']);
-        $propId = 0;
-        $rsProp = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $prop['CODE']]);
-        if (!$rsProp->Fetch()) {
-            $propId = (new CIBlockProperty)->Add($prop);
-        }
-        if ($propId) {
-            foreach ($values as $val) {
+
+    $rsProp = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $prop['CODE']]);
+    if ($arProp = $rsProp->Fetch()) {
+        $propId = $arProp['ID'];
+        if ($prop['PROPERTY_TYPE'] == 'L' && isset($prop['VALUES'])) {
+            foreach ($prop['VALUES'] as $val) {
                 $val['PROPERTY_ID'] = $propId;
                 $val['DEF'] = $val['DEF'] ?? 'N';
                 $dbList = CIBlockPropertyEnum::GetList([], ['PROPERTY_ID' => $propId, 'VALUE' => $val['VALUE']]);
@@ -140,11 +136,22 @@ foreach ($propDefinitions as $prop) {
                 }
             }
         }
-    } else {
-        $rsProp = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $prop['CODE']]);
-        if (!$rsProp->Fetch()) {
-            (new CIBlockProperty)->Add($prop);
+        continue;
+    }
+
+    if ($prop['PROPERTY_TYPE'] == 'L') {
+        $values = $prop['VALUES'];
+        unset($prop['VALUES']);
+        $propId = (new CIBlockProperty)->Add($prop);
+        if ($propId) {
+            foreach ($values as $val) {
+                $val['PROPERTY_ID'] = $propId;
+                $val['DEF'] = $val['DEF'] ?? 'N';
+                (new CIBlockPropertyEnum)->Add($val);
+            }
         }
+    } else {
+        (new CIBlockProperty)->Add($prop);
     }
 }
 

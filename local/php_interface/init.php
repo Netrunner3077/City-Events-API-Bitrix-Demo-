@@ -18,16 +18,21 @@ AddEventHandler('iblock', 'OnBeforeIBlockElementUpdate', 'OnBeforeCityEventsSave
 
 function OnBeforeCityEventsSave(&$arFields)
 {
-    if ($arFields['IBLOCK_CODE'] !== 'city_events') {
+    CModule::IncludeModule('iblock');
+    $iblock = CIBlock::GetList([], ['CODE' => 'city_events'])->Fetch();
+    if (!$iblock) {
         return;
     }
+    $iblockId = (int)$iblock['ID'];
 
-    CModule::IncludeModule('iblock');
+    if ((int)$arFields['IBLOCK_ID'] !== $iblockId) {
+        return;
+    }
 
     $elementId = (int)$arFields['ID'];
     $oldProps = [];
     if ($elementId) {
-        $dbProps = CIBlockElement::GetProperty($arFields['IBLOCK_ID'], $elementId);
+        $dbProps = CIBlockElement::GetProperty($iblockId, $elementId);
         while ($prop = $dbProps->Fetch()) {
             $oldProps[$prop['CODE']] = $prop;
         }
@@ -37,23 +42,20 @@ function OnBeforeCityEventsSave(&$arFields)
         if (!empty($arFields['PROPERTY_VALUES'][$dateProp])) {
             $val = $arFields['PROPERTY_VALUES'][$dateProp];
             if (is_string($val)) {
-                $dateTime = \DateTime::createFromFormat('d.m.Y H:i:s', $val);
+                $dateTime = \DateTime::createFromFormat('d.m.Y H:i:s', $val) ?:
+                    \DateTime::createFromFormat('Y-m-d H:i:s', $val) ?:
+                    \DateTime::createFromFormat('Y-m-d H:i', $val);
                 if ($dateTime) {
                     $arFields['PROPERTY_VALUES'][$dateProp] = \Bitrix\Main\Type\DateTime::createFromPhp($dateTime);
-                } else {
-                    $dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $val);
-                    if ($dateTime) {
-                        $arFields['PROPERTY_VALUES'][$dateProp] = \Bitrix\Main\Type\DateTime::createFromPhp($dateTime);
-                    }
                 }
             }
         }
     }
 
     $data = [
-        'start_at' => $arFields['PROPERTY_VALUES']['START_AT'] ?? $oldProps['START_AT']['VALUE'],
-        'capacity' => $arFields['PROPERTY_VALUES']['CAPACITY'] ?? $oldProps['CAPACITY']['VALUE'],
-        'tags' => $arFields['PROPERTY_VALUES']['TAGS'] ?? $oldProps['TAGS']['VALUE'],
+        'start_at' => $arFields['PROPERTY_VALUES']['START_AT'] ?? $oldProps['START_AT']['VALUE'] ?? null,
+        'capacity' => $arFields['PROPERTY_VALUES']['CAPACITY'] ?? $oldProps['CAPACITY']['VALUE'] ?? null,
+        'tags'     => $arFields['PROPERTY_VALUES']['TAGS'] ?? $oldProps['TAGS']['VALUE'] ?? [],
     ];
 
     if (empty($data['start_at']) || empty($data['capacity'])) {
@@ -63,7 +65,9 @@ function OnBeforeCityEventsSave(&$arFields)
     if ($data['start_at'] instanceof \Bitrix\Main\Type\DateTime) {
         $data['start_at'] = $data['start_at']->format('Y-m-d H:i:s');
     } elseif (is_string($data['start_at'])) {
-        $date = \DateTime::createFromFormat('d.m.Y H:i:s', $data['start_at']);
+        $date = \DateTime::createFromFormat('d.m.Y H:i:s', $data['start_at']) ?:
+            \DateTime::createFromFormat('Y-m-d H:i:s', $data['start_at']) ?:
+            \DateTime::createFromFormat('Y-m-d H:i', $data['start_at']);
         if ($date) {
             $data['start_at'] = $date->format('Y-m-d H:i:s');
         }

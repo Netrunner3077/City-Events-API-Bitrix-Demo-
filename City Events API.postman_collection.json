@@ -1,0 +1,161 @@
+{
+    "info": {
+        "_postman_id": "city-events-api",
+        "name": "City Events API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Get events list",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/?from=2026-03-01&to=2026-03-31&status=published&sort=popularity&limit=3",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "query": [
+                        {
+                            "key": "from",
+                            "value": "2026-03-01"
+                        },
+                        {
+                            "key": "to",
+                            "value": "2026-03-31"
+                        },
+                        {
+                            "key": "status",
+                            "value": "published"
+                        },
+                        {
+                            "key": "sort",
+                            "value": "popularity"
+                        },
+                        {
+                            "key": "limit",
+                            "value": "3"
+                        }
+                    ]
+                },
+                "description": "Получение списка событий с фильтрацией и сортировкой. Ответ содержит пагинацию (links.next для продолжения)."
+            }
+        },
+        {
+            "name": "Get events list with cursor",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/?limit=3&cursor=W3sibGFzdF9pZCI6MTEsInN0YXJ0X2F0IjoiMjAyNi0wMy0xOCAyMDowMDowMCIsInBvcHVsYXJpdHkiOjR9XQ==",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "query": [
+                        {
+                            "key": "limit",
+                            "value": "3"
+                        },
+                        {
+                            "key": "cursor",
+                            "value": "W3sibGFzdF9pZCI6MTEsInN0YXJ0X2F0IjoiMjAyNi0wMy0xOCAyMDowMDowMCIsInBvcHVsYXJpdHkiOjR9XQ=="
+                        }
+                    ]
+                },
+                "description": "Пример перехода на следующую страницу с помощью курсора (значение взято из links.next предыдущего ответа)."
+            }
+        },
+        {
+            "name": "Create event",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"title\": \"Новое событие\",\n  \"place\": \"Концертный зал\",\n  \"start_at\": \"2026-05-10 19:00\",\n  \"end_at\": \"2026-05-10 22:00\",\n  \"tags\": [\"музыка\", \"концерт\"],\n  \"capacity\": 300,\n  \"status\": \"draft\"\n}"
+                },
+                "url": "{{base_url}}/",
+                "description": "Создание нового события. Возвращает созданный объект с присвоенным ID и рассчитанным popularity."
+            }
+        },
+        {
+            "name": "Get event by ID",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    }
+                ],
+                "url": "{{base_url}}/1",
+                "description": "Получение события по ID. По вторникам и средам добавляется поле recommendation."
+            }
+        },
+        {
+            "name": "Update event",
+            "request": {
+                "method": "PUT",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"status\": \"published\"\n}"
+                },
+                "url": "{{base_url}}/1",
+                "description": "Обновление события (например, изменение статуса). Можно отправлять только изменяемые поля."
+            }
+        },
+        {
+            "name": "Delete event",
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "X-API-Key",
+                        "value": "{{api_key}}"
+                    }
+                ],
+                "url": "{{base_url}}/12",
+                "description": "Удаление события (только если оно не началось и статус не published). Возвращает 204 No Content."
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://events.sandbox.galahad.beget.tech/events/v1"
+        },
+        {
+            "key": "api_key",
+            "value": "secret-api-key-2026"
+        }
+    ]
+}

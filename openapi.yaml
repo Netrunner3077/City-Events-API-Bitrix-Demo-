@@ -1,0 +1,430 @@
+openapi: 3.0.0
+info:
+  title: City Events API
+  description: REST API для каталога городских событий на базе 1С-Битрикс
+  version: 1.0.0
+  contact:
+    name: Victor
+    url: https://github.com/Netrunner3077/City-Events-API-Bitrix-Demo-
+servers:
+  - url: http://events.sandbox.galahad.beget.tech/events/v1
+    description: Песочница на Beget
+security:
+  - ApiKeyAuth: []
+paths:
+  /:
+    get:
+      summary: Получить список событий
+      description: Возвращает список событий с поддержкой фильтрации, сортировки и курсорной пагинации.
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Начало диапазона дат (включительно), формат YYYY-MM-DD
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Конец диапазона дат (включительно), формат YYYY-MM-DD
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Фильтр по тегу (точное совпадение)
+        - name: place
+          in: query
+          schema:
+            type: string
+          description: Фильтр по месту (точное совпадение)
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, cancelled]
+          description: Фильтр по статусу
+        - name: min_popularity
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+          description: Минимальный рейтинг популярности
+        - name: max_popularity
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+          description: Максимальный рейтинг популярности
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [soon_and_popular, popularity]
+            default: soon_and_popular
+          description: |
+            soon_and_popular — сортировка по дате начала (ближайшие сверху), затем по популярности (убывание), затем по ID.
+            popularity — сортировка только по популярности (убывание), затем по ID.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: Количество элементов на странице
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Маркер для продолжения выборки (кодированный указатель)
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        description: Общее количество элементов, удовлетворяющих фильтру
+                      per_page:
+                        type: integer
+                        description: Количество элементов на текущей странице
+                  links:
+                    type: object
+                    properties:
+                      self:
+                        type: string
+                        description: Ссылка на текущую страницу
+                      next:
+                        type: string
+                        nullable: true
+                        description: Ссылка на следующую страницу (null, если следующей нет)
+                      prev:
+                        type: string
+                        nullable: true
+                        description: Ссылка на предыдущую страницу (null, если предыдущей нет)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+    post:
+      summary: Создать новое событие
+      description: Создаёт событие. Автоматически рассчитывается popularity. Если popularity=1, возвращается ошибка 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+      responses:
+        '201':
+          description: Событие успешно создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Низкая популярность (popularity=1)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: Ошибка валидации (неверный формат дат, превышение лимита тегов, capacity вне диапазона)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+  /{id}:
+    get:
+      summary: Получить событие по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Event'
+                  - type: object
+                    properties:
+                      recommendation:
+                        type: string
+                        description: Поле добавляется только по вторникам и средам
+                        example: "Рекомендуем по вторникам и средам"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Событие не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+    put:
+      summary: Обновить событие
+      description: Обновляет только переданные поля. Увеличивает change_number на 1.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventUpdateInput'
+      responses:
+        '200':
+          description: Событие успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Ошибка валидации (например, start_at в прошлом) или низкая популярность после пересчёта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Действие запрещено (например, попытка изменить cancelled на published)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Событие не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Конфликт версий (change_number не совпадает) — в текущей реализации не реализовано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Ошибка валидации полей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+    delete:
+      summary: Удалить событие
+      description: Удалить можно только если событие ещё не началось и его статус не published.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Событие успешно удалено (нет содержимого)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Удаление запрещено (событие уже началось или опубликовано)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Событие не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор события
+        title:
+          type: string
+          description: Название события
+        place:
+          type: string
+          description: Место проведения
+        start_at:
+          type: string
+          format: date-time
+          description: Дата и время начала в формате YYYY-MM-DD HH:MM:SS
+        end_at:
+          type: string
+          format: date-time
+          description: Дата и время окончания
+        tags:
+          type: array
+          items:
+            type: string
+          description: Список тегов (не более 5)
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          description: Общее количество мест
+        status:
+          type: string
+          enum: [draft, published, cancelled]
+          description: Статус события
+        popularity:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Автоматически рассчитываемый рейтинг интереса
+        change_number:
+          type: integer
+          description: Счётчик изменений, увеличивается при каждом сохранении
+      required:
+        - id
+        - title
+        - place
+        - start_at
+        - end_at
+        - capacity
+        - status
+        - popularity
+        - change_number
+    EventInput:
+      type: object
+      required:
+        - title
+        - place
+        - start_at
+        - end_at
+        - capacity
+        - status
+      properties:
+        title:
+          type: string
+          description: Название события
+        place:
+          type: string
+          description: Место проведения
+        start_at:
+          type: string
+          format: date-time
+          description: Дата и время начала в формате YYYY-MM-DD HH:MM
+        end_at:
+          type: string
+          format: date-time
+          description: Дата и время окончания в формате YYYY-MM-DD HH:MM
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          description: Список тегов (не более 5)
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          description: Общее количество мест
+        status:
+          type: string
+          enum: [draft, published]
+          description: Статус (cancelled запрещён при создании)
+    EventUpdateInput:
+      type: object
+      properties:
+        title:
+          type: string
+        place:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 5000
+        status:
+          type: string
+          enum: [draft, published, cancelled]
+      minProperties: 1
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            code:
+              type: string
+          required:
+            - message
+            - code
+  responses:
+    UnauthorizedError:
+      description: Отсутствует или неверный API-ключ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: Unauthorized
+              code: UNAUTHORIZED
+    TooManyRequestsError:
+      description: Слишком много запросов (заглушка, не реализовано)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: Too many requests
+              code: TOO_MANY_REQUESTS
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API-ключ для доступа к сервису. Значение по умолчанию: `secret-api-key-2026`.
